@@ -3,11 +3,32 @@
 #include <cstdlib>
 #include <ctime>
 #include <unistd.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
-Conway::Conway(int width, int height) 
-    : width(width), height(height), grid(height, std::vector<bool>(width, false)) {
+Conway::Conway() {
     std::srand(std::time(nullptr));
-    initializeGrid();
+    resizeGrid();
+}
+
+std::pair<int, int> Conway::getTerminalSize() const {
+    struct winsize size;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
+    return {size.ws_col, size.ws_row - 1};
+}
+
+void Conway::resizeGrid() {
+    auto [newWidth, newHeight] = getTerminalSize();
+    
+    if (newWidth != width || newHeight != height) {
+        width = newWidth;
+        height = newHeight;
+        grid.resize(height);
+        for (auto& row : grid) {
+            row.resize(width);
+        }
+        initializeGrid();
+    }
 }
 
 void Conway::initializeGrid() {
@@ -62,11 +83,12 @@ void Conway::render() const {
         }
         std::cout << "\n";
     }
-    std::cout << std::flush;
+    std::cout << "Rezise to change grid size | Ctrl+C to quit" << std::flush;
 }
 
-void Conway::run(int generations) {
-    for (int i = 0; i < generations; ++i) {
+void Conway::run() {
+    while (true) {
+        resizeGrid();
         render();
         update();
         usleep(100000);
