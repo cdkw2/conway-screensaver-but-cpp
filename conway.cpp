@@ -4,9 +4,10 @@
 #include <ctime>
 #include <unistd.h>
 #include <sys/ioctl.h>
-#include <unistd.h>
+#include <string>
+#include <cstdio>
 
-Conway::Conway() {
+Conway::Conway() : last_time(std::chrono::steady_clock::now()) {
     std::srand(std::time(nullptr));
     resizeGrid();
 }
@@ -14,11 +15,13 @@ Conway::Conway() {
 std::pair<int, int> Conway::getTerminalSize() const {
     struct winsize size;
     ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
-    return {size.ws_col, size.ws_row - 1};
+    return std::make_pair(size.ws_col, size.ws_row - 1);
 }
 
 void Conway::resizeGrid() {
-    auto [newWidth, newHeight] = getTerminalSize();
+    auto dimensions = getTerminalSize();
+    int newWidth = dimensions.first;
+    int newHeight = dimensions.second;
     
     if (newWidth != width || newHeight != height) {
         width = newWidth;
@@ -74,16 +77,33 @@ void Conway::update() {
     grid = newGrid;
 }
 
-void Conway::render() const {
-    std::cout << "\033[2J\033[H";
+void Conway::render() {
+    auto now = std::chrono::steady_clock::now();
+    double elapsed = std::chrono::duration<double>(now - last_time).count();
+    fps = 0.9 * fps + 0.1 * (1.0 / elapsed);
+    last_time = now;
+
+    std::string buffer;
+    buffer.reserve((width + 1) * height + 100);
+    
+    buffer.append("\033[H");
     
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
-            std::cout << (grid[y][x] ? "0" : " ");
+            buffer += grid[y][x] ? '0' : ' ';
         }
-        std::cout << "\n";
+        buffer += '\n';
     }
-    std::cout << "Rezise to change grid size | Ctrl+C to quit" << std::flush;
+
+    char fps_str[20];
+    snprintf(fps_str, sizeof(fps_str), "%.1f", fps);
+
+    buffer += "Update: Buffer approach ";
+    buffer += "| Ctrl+C to quit ";
+    buffer += "| FPS: ";
+    buffer += fps_str;
+    
+    std::cout << buffer << std::flush;
 }
 
 void Conway::run() {
